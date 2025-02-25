@@ -39,11 +39,13 @@ public class GameUseCase {
 
     @Scheduled(fixedRate = 1000)
     public void printCacheEntries() {
-        JCacheCache cache = (JCacheCache) cacheManager.getCache("games");
-        if (cache != null) {
-            log.debug("---- CACHE ENTRIES -----");
-            Cache<Object, Object> nativeCache = cache.getNativeCache();
-            nativeCache.forEach(entry -> log.debug("[{}]=[{}]", entry.getKey(), entry.getValue()));
+        if (cacheManager instanceof JCacheCache) {
+            JCacheCache cache = (JCacheCache) cacheManager.getCache("games");
+            if (cache != null) {
+                log.debug("---- CACHE ENTRIES -----");
+                Cache<Object, Object> nativeCache = cache.getNativeCache();
+                nativeCache.forEach(entry -> log.debug("[{}]=[{}]", entry.getKey(), entry.getValue()));
+            }
         }
     }
 

@@ -1,19 +1,19 @@
 package fr.fdu.cachedemo;
 
-import fr.fdu.cachedemo.application.CacheEventListener;
+import fr.fdu.cachedemo.application.EhCacheEventListener;
+import fr.fdu.cachedemo.domain.Game;
+import org.ehcache.config.builders.CacheConfigurationBuilder;
+import org.ehcache.config.builders.CacheEventListenerConfigurationBuilder;
+import org.ehcache.config.builders.ExpiryPolicyBuilder;
+import org.ehcache.config.builders.ResourcePoolsBuilder;
+import org.ehcache.config.units.MemoryUnit;
+import org.ehcache.event.EventType;
+import org.ehcache.jsr107.Eh107Configuration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.cache.JCacheManagerCustomizer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import javax.cache.configuration.CacheEntryListenerConfiguration;
-import javax.cache.configuration.FactoryBuilder;
-import javax.cache.configuration.MutableCacheEntryListenerConfiguration;
-import javax.cache.configuration.MutableConfiguration;
-import javax.cache.expiry.CreatedExpiryPolicy;
-import javax.cache.expiry.Duration;
-import java.util.concurrent.TimeUnit;
 
 @EnableCaching
 @Configuration
@@ -23,28 +23,21 @@ public class CacheConfiguration {
     private java.time.Duration ttl;
 
     @Bean
-    public JCacheManagerCustomizer customizer(MutableConfiguration<Object, Object> configuration) {
-        return cacheManager -> cacheManager.createCache("games", configuration);
-    }
+    public JCacheManagerCustomizer customizer() {
+        CacheEventListenerConfigurationBuilder cacheEventListenerConfiguration = CacheEventListenerConfigurationBuilder
+                .newEventListenerConfiguration(new EhCacheEventListener(), EventType.CREATED, EventType.EXPIRED);
 
-    @Bean
-    public MutableConfiguration<Object, Object> configuration(
-            CacheEntryListenerConfiguration<Object, Object> listenerConfiguration) {
-        MutableConfiguration<Object, Object> configuration = new MutableConfiguration<>();
-        configuration.addCacheEntryListenerConfiguration(listenerConfiguration);
-        configuration.setExpiryPolicyFactory(CreatedExpiryPolicy.factoryOf(
-                new Duration(TimeUnit.MILLISECONDS, ttl.toMillis()))
-        );
+        return cm -> {
+            var gameCacheConfig = CacheConfigurationBuilder
+                    .newCacheConfigurationBuilder(
+                            String.class, Game.class,
+                            ResourcePoolsBuilder.heap(10).offheap(10, MemoryUnit.MB))
+                    .withExpiry(ExpiryPolicyBuilder.timeToLiveExpiration(ttl))
+                    .withService(cacheEventListenerConfiguration)
+                    .build();
 
-        return configuration;
-    }
-
-    @Bean
-    public CacheEntryListenerConfiguration<Object, Object> listenerConfiguration() {
-        return new MutableCacheEntryListenerConfiguration<>(FactoryBuilder.factoryOf(CacheEventListener.class),
-                null,
-                false,
-                true);
+            cm.createCache("games", Eh107Configuration.fromEhcacheCacheConfiguration(gameCacheConfig));
+        };
     }
 
 }
